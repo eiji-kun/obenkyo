@@ -15,6 +15,7 @@ export default function QuizClient() {
     const [questions, setQuestions] = useState<any[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [options, setOptions] = useState<string[]>([]);
+    const [flipped, setFlipped] = useState(() => search.get("flip") === "1"); // initialize from URL param if provided
     const [selected, setSelected] = useState<string | null>(null);
     const [score, setScore] = useState(0);
 
@@ -25,35 +26,46 @@ export default function QuizClient() {
 
     useEffect(() => {
         if (questions.length === 0 || currentIndex >= questions.length) return;
-
-        const correct = questions[currentIndex]?.answer;
+        // When flipped is false: prompt = question, options = answers
+        // When flipped is true: prompt = answer, options = questions
+        const correct = flipped ? questions[currentIndex]?.question : questions[currentIndex]?.answer;
         if (!correct) return;
 
         const others = groupQuestions
-            .filter((q) => q.answer !== correct)
+            .filter((q) => (flipped ? q.question !== correct : q.answer !== correct))
             .sort(() => Math.random() - 0.5)
             .slice(0, 9)
-            .map((q) => q.answer);
+            .map((q) => (flipped ? q.question : q.answer));
 
         setOptions([...others, correct].sort(() => Math.random() - 0.5));
-    }, [questions, currentIndex]);
+    }, [questions, currentIndex, flipped]);
+
+    // Regenerate options when flip mode changes so options match the mode
+    useEffect(() => {
+        // reset selection and options when flip toggles
+        setSelected(null);
+        setOptions([]);
+        // trigger the options generation effect by nudging currentIndex (or rely on effect dependencies)
+    }, [flipped]);
 
     const handleSelect = (opt: string) => {
         if (selected) return;
         setSelected(opt);
-        if (opt === questions[currentIndex].answer) setScore((s) => s + 1);
+        const correctValue = flipped ? questions[currentIndex].question : questions[currentIndex].answer;
+        if (opt === correctValue) setScore((s) => s + 1);
 
         setTimeout(() => {
             if (currentIndex + 1 < totalQuestions) {
                 setCurrentIndex((i) => i + 1);
                 setSelected(null);
-            } else {
-                const history = JSON.parse(localStorage.getItem("scoreHistory") || "[]");
-                history.push({ score, date: new Date().toISOString(), group });
-                if (history.length > 20) history.shift();
-                localStorage.setItem("scoreHistory", JSON.stringify(history));
-                router.push("/result");
-            }
+                } else {
+                    const history = JSON.parse(localStorage.getItem("scoreHistory") || "[]");
+                    // store flip flag so results can be filtered by mode
+                    history.push({ score, date: new Date().toISOString(), group, flip: Boolean(flipped) });
+                    if (history.length > 200) history.shift();
+                    localStorage.setItem("scoreHistory", JSON.stringify(history));
+                    router.push("/result");
+                }
         }, 800);
     };
 
@@ -69,12 +81,28 @@ export default function QuizClient() {
     const current = questions[currentIndex];
     if (!current) return <p>読み込み中...</p>;
 
+    const correctValue = flipped ? current.question : current.answer;
+
     return (
         <main style={{ padding: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                        type="checkbox"
+                        checked={flipped}
+                        // quiz page shouldn't allow changing flip (must be chosen on top page)
+                        disabled
+                        readOnly
+                    />
+                    <span style={{ fontSize: "0.9rem" }}>解答を出題にする (問題/選択肢を入れ替え)</span>
+                </label>
+            </div>
             <h2>
                 {group}クイズ {currentIndex + 1} / {totalQuestions}
             </h2>
-            <p style={{ fontSize: "1.2rem", marginBottom: 20 }}>{current.question}</p>
+            <p style={{ fontSize: "1.2rem", marginBottom: 20 }}>
+                {flipped ? current.answer : current.question}
+            </p>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {options.map((opt) => (
@@ -88,7 +116,7 @@ export default function QuizClient() {
                             WebkitAppearance: "none",
                             background:
                                 selected === opt
-                                    ? opt === current.answer
+                                    ? opt === correctValue
                                         ? "#a0e7a0"
                                         : "#f7a8a8"
                                     : "#eee",
