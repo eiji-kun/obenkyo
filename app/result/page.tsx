@@ -10,8 +10,25 @@ import {
 export default function ResultPage() {
   const router = useRouter();
   const [history, setHistory] = useState<any[]>([]);
-  const groups = useMemo(() => Array.from(new Set(questionsData.map((q) => q.group))), []);
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(groups[0] || null);
+  const groups = useMemo(() => {
+    const uniqueGroups = Array.from(new Set(questionsData.map((q) => q.group)));
+    return [...uniqueGroups, "同音異義語"];
+  }, []);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(() => {
+    // Try to get the last quiz group from localStorage
+    try {
+      const lastHistory = JSON.parse(localStorage.getItem("scoreHistory") || "[]");
+      if (lastHistory.length > 0) {
+        const lastEntry = lastHistory[lastHistory.length - 1];
+        return lastEntry.type === "homophones" || lastEntry.group === "homophones" 
+          ? "同音異義語" 
+          : lastEntry.group;
+      }
+      return groups[0];
+    } catch (e) {
+      return groups[0];
+    }
+  });
   const [filterFlip, setFilterFlip] = useState<boolean>(() => {
     try {
       const v = localStorage.getItem("quiz_flipped");
@@ -30,6 +47,11 @@ export default function ResultPage() {
   const filtered = history
     .filter((h) => {
       if (!selectedGroup) return false;
+      if (selectedGroup === "同音異義語") {
+        // For debugging
+        console.log("Found score:", h);
+        return h.type === "homophones" || h.group === "homophones";
+      }
       const hflip = typeof h.flip === "boolean" ? h.flip : false; // legacy entries default to false
       return h.group === selectedGroup && hflip === filterFlip;
     })
@@ -52,10 +74,12 @@ export default function ResultPage() {
           </select>
         </label>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input type="checkbox" checked={filterFlip} onChange={() => setFilterFlip((v) => !v)} />
-          <span>解答を出題にするモードのみ表示</span>
-        </label>
+        {selectedGroup !== "同音異義語" && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={filterFlip} onChange={() => setFilterFlip((v) => !v)} />
+            <span>解答を出題にするモードのみ表示</span>
+          </label>
+        )}
       </div>
 
       {filtered.length > 0 ? (

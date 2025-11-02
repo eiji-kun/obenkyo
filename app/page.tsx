@@ -38,7 +38,7 @@ export default function HomePage() {
       </div>
 
       <p>グループを選んでください：</p>
-      <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
+      <div style={{ display: "flex", gap: 16, marginTop: 20, flexWrap: "wrap" }}>
         {groups.map((group) => (
           <button
             key={group}
@@ -48,11 +48,24 @@ export default function HomePage() {
               borderRadius: 8,
               background: "#0070f3",
               color: "white",
+              marginBottom: 12
             }}
           >
             {group}
           </button>
         ))}
+        <button
+          onClick={() => router.push(`/quiz/homophones`)}
+          style={{
+            padding: "10px 20px",
+            borderRadius: 8,
+            background: "#0070f3",
+            color: "white",
+            marginLeft: 32
+          }}
+        >
+          同音異義語
+        </button>
       </div>
       <button
         onClick={() => router.push("/admin")}
